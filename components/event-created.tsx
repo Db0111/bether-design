@@ -801,30 +801,39 @@ export default function EventCreated() {
                       <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
                         <h4 className="font-medium text-emerald-800 mb-3 flex items-center gap-2">
                           <CheckCircle className="w-4 h-4" />
-                          추천 시간대 Top 3 (가장 많은 사람이 가능한 시간)
+                          추천 시간대 Top 2
                         </h4>
                         {(() => {
-                          // 모든 시간대의 가능한 사람 수 계산
-                          const timeSlotCounts: {
+                          // 모든 시간대의 통계 계산
+                          const timeSlotStats: {
                             dayIndex: number;
                             hour: number;
-                            count: number;
+                            available: number;
+                            maybe: number;
+                            impossible: number;
                             dayName: string;
                             weekNumber: number;
                           }[] = [];
+
                           for (let dayIndex = 0; dayIndex < 14; dayIndex++) {
                             for (let hour = 9; hour < 18; hour++) {
-                              const count = getAvailabilityCount(
+                              const available = getAvailabilityCount(
                                 dayIndex,
                                 hour
                               );
-                              if (count > 0) {
+                              const maybe = getMaybeCount(dayIndex, hour);
+                              const impossible =
+                                participants.length - available - maybe;
+
+                              if (available > 0 || maybe > 0) {
                                 const dayName = days[dayIndex % 7];
                                 const weekNumber = Math.floor(dayIndex / 7) + 1;
-                                timeSlotCounts.push({
+                                timeSlotStats.push({
                                   dayIndex,
                                   hour,
-                                  count,
+                                  available,
+                                  maybe,
+                                  impossible,
                                   dayName,
                                   weekNumber,
                                 });
@@ -832,14 +841,26 @@ export default function EventCreated() {
                             }
                           }
 
-                          // 가능한 사람 수로 정렬하고 Top 3 선택
-                          const top3 = timeSlotCounts
-                            .sort((a, b) => b.count - a.count)
-                            .slice(0, 3);
+                          // 정렬 기준 적용
+                          const sortedSlots = timeSlotStats.sort((a, b) => {
+                            // 1차: 가능 + 애매 값이 큰 순서
+                            const aTotal = a.available + a.maybe;
+                            const bTotal = b.available + b.maybe;
+                            if (aTotal !== bTotal) return bTotal - aTotal;
+
+                            // 2차: 가능 수가 더 큰 순서
+                            if (a.available !== b.available)
+                              return b.available - a.available;
+
+                            // 3차: 애매 수가 더 큰 순서
+                            return b.maybe - a.maybe;
+                          });
+
+                          const top2 = sortedSlots.slice(0, 2);
 
                           return (
-                            <div className="grid grid-cols-3 gap-3">
-                              {top3.map((slot, index) => (
+                            <div className="grid grid-cols-2 gap-3">
+                              {top2.map((slot, index) => (
                                 <div
                                   key={`${slot.dayIndex}-${slot.hour}`}
                                   className="p-3 bg-white rounded-lg border border-emerald-200 text-center"
@@ -853,14 +874,22 @@ export default function EventCreated() {
                                   <div className="text-emerald-600 font-medium text-sm">
                                     {slot.hour}:00
                                   </div>
-                                  <div className="text-xs text-emerald-500">
-                                    {slot.count}명 가능
+                                  <div className="text-xs space-y-1 mt-2">
+                                    <div className="text-emerald-500">
+                                      가능: {slot.available}명
+                                    </div>
+                                    <div className="text-amber-500">
+                                      애매: {slot.maybe}명
+                                    </div>
+                                    <div className="text-red-500">
+                                      불가: {slot.impossible}명
+                                    </div>
                                   </div>
                                 </div>
                               ))}
-                              {top3.length === 0 && (
-                                <div className="col-span-3 text-center text-slate-400 py-4">
-                                  아직 가능한 시간이 없습니다
+                              {top2.length === 0 && (
+                                <div className="col-span-2 text-center text-slate-400 py-4">
+                                  아직 응답한 시간이 없습니다
                                 </div>
                               )}
                             </div>
